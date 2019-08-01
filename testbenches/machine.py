@@ -27,8 +27,8 @@ class PWM:
     def __init__(self, pin, freq=0, duty=0):
         if freq<0:
           raise ValueError("Frequency must be positive")
-        if(duty>100 or duty<0):
-          raise ValueError("Duty must be in range 0-100")
+        if(duty>1023 or duty<0):
+          raise ValueError("Duty must be in range 0-1023")
         if pin.conf[0]!=Pin.OUT:
           raise ValueError("Pin must be in output mode!")
         self.p = pin
