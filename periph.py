@@ -3,31 +3,44 @@ from random import randint
 import _thread
 
 class PeripheralRemote:
-    def __init__(self, address, name, t, dbg = print):
-        self.adr = address
-        self.name = name
-        self.type = t
+    def __init__(self, address, name, dbg = print):
+        self._adr = address
+        self._name = name
         if(dbg!=None):
             dbg("Connecting to "+str(address)+"...")
-        self.connection = net.NrlConnection(address, 0xF00F1337)
+        self._con = net.NrlConnection(address, 0xF00F1337)
         if(dbg!=None):
             dbg("Exchanging data...")
-        self.connection.send(b'ls\x00'+name.encode())
-        rv = self.connection.recv()
+        self._con.send(b'ls\x00'+name.encode())
+        rv = self._con.recv()
         if rv==None:
             raise Exception("Connection Error")
         tokens = rv.split(b'\x00')
         if tokens[0]==b'error':
-            raise Exception(tokens[1])
+            raise Exception(tokens[1].decode())
         if tokens[0]!=b'ok':
             raise Exception("Protocol Error")
         for i in tokens[1:]:
-            self.__add_method__(i)
+            self.__add_method__(i.decode())
     def __add_method__(self, name):
-        setattr(self, name, eval("lambda self,*a: self.__call_remote__('"+name+"',a)", {}, {}).__get__(self))
+        setattr(self, name, eval("lambda self,*a: self.__call_remote__(b'"+name+"',a)", {}, {}).__get__(self))
     def __call_remote__(self, fn, args):
-        print(fn+":", *args)
-
+        self._con.send(b'call\x00'+self._name.encode()+b"\x00"+fn+b"\x00"+repr(list(args)).encode())
+        res = self._con.recv()
+        if res==None:
+            raise Exception("Connection Error")
+        else:
+            res = res.split(b'\x00')
+            if len(res)!=2 or not res[0] in [b'ok', b'raise', b'error']:
+                raise Exception("Protocol Error")
+            elif res[0]==b'error':
+                raise Exception(res[1].decode())
+            elif res[0]==b'raise':
+                raise eval(res[1])
+            elif res[0]==b'ok':
+                return eval(res[1])
+            else:
+                raise Exception("You should never see this error, perhaps Thanos is here?")
 
 server_started = False
 glob_periphs = {}
@@ -50,13 +63,14 @@ def server_code():
                         pkt+=i.encode()+b'\x00'
                     open_port.send(src, pkt)
                 else:
-                    if not data[1] in glob_periphs.keys():
+                    if not data[1].decode() in glob_periphs.keys():
                         open_port.send(src, b'error\x00Peripheral \''+data[1]+b'\' not found')
                     else:
                         pkt = b'ok\x00'
-                        v = vars(glob_periphs[data[1]])
-                        for i in v.keys():
-                            if i[:2]!='__' and callable(v[i]):
+                        periph = glob_periphs[data[1].decode()]
+                        v = dir(periph)
+                        for i in v:
+                            if i[:2]!='__' and callable(eval("periph."+i)):
                                 pkt+=i.encode()+b'\x00'
                         open_port.send(src, pkt)
             elif cmd==b'call':
@@ -80,7 +94,7 @@ def server_code():
                             open_port.send(src, b'ok\x00'+resultat.encode())
                         except Exception as e:
                             resultat = repr(e)
-                            open_port.send(src, b'error\x00'+resultat.encode())
+                            open_port.send(src, b'raise\x00'+resultat.encode())
             else:
                 open_port.send(src, b'error\x00Invalid command \''+cmd+b'\'')
                     
