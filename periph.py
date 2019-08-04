@@ -1,6 +1,6 @@
 import neonet as net
 from random import randint
-import _thread
+import _thread, os
 
 def lsperiph(adr):
     con = net.NrlConnection(adr, 0xF00F1337)
@@ -131,3 +131,75 @@ def bindLocalPeripheral(obj, name):
     glob_periphs[name] = obj
     return obj
 
+class PeriphCPU:
+    def __init__(self):
+        self.work = {}
+    def startJob(self, code):
+        idn = os.urandom(4)
+        self.work[idn] = [_thread.start_new_thread(self.__work__, (code,idn))]
+    def __work__(self, code, idn):
+        self.work[idn].append(eval(code, {}, {}))
+    def status(self, idn):
+        if not idn in self.work.keys():
+            return -1
+        if len(self.work[idn])==2:
+            return True
+        return False
+    def getResult(self, idn):
+        if not idn in self.work.keys():
+            raise ValueError("Invalid job ID")
+        if len(self.work[idn])!=2:
+            raise Exception("Job not finished.")
+        return self.work[idn][1]
+    """def killJob(self, idn):
+        if not idn in self.work.keys():
+            raise ValueError("Invalid job ID")
+        if len(self.work[idn])==2:
+            raise Exception("Job finished.")
+        
+        """
+    def numRunning(self):
+        cnt = 0
+        for i in self.work.keys():
+            if len(self.work[i])<2:
+                cnt+=1
+        return cnt
+    def cleanFinished(self):
+        for i in list(self.work.keys()):
+            if len(self.work[i])==2:
+                self.work.pop(i)
+
+
+class PeriphCombinedCPU:
+    def __init__(self, cpus):
+        if type(cpus)!=list or len(cpus)<2:
+            raise ValueError("Cannot accept argument.")
+        self.cpus = cpus
+        self.cpucnt = 0
+        self.work = {}
+    def startJob(self, code):
+        idn = os.urandom(4)
+        cpu = self.cpus[self.cpucnt]
+        self.cpucnt = (self.cpucnt+1)%len(self.cpus)
+        jobid = cpu.startJob(code)
+        self.work[idn] = [cpu, jobid]
+    def status(self, idn):
+        if not idn in self.work.keys():
+            return -1
+        return self.work[idn][0].status(self.work[idn][1])
+    def getResult(self, idn):
+        if not idn in self.work.keys():
+            raise ValueError("Invalid job ID")
+        return self.work[idn][0].getResult(self.work[idn][1])
+    def numRunning(self):
+        cnt = 0
+        for i in self.cpus:
+            cnt+=i.numRunning()
+        return cnt
+    def cleanFinished(self):
+        for i in list(self.work.keys()):
+            if self.status(i):
+                self.work.pop(i)
+        for i in self.cpus:
+            i.cleanFinished()
+ 
