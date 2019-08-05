@@ -17,6 +17,9 @@ def lsperiph(adr):
         return tokens[1:-1]
     return tokens[1:]
 
+def file_size(fn):
+    return os.stat(fn)[6]
+
 class PeripheralRemote:
     def __init__(self, address, name, dbg = print):
         self._adr = address
@@ -61,6 +64,8 @@ class PeripheralRemote:
       if namen in self._methods.keys():
         return self._methods[namen]
       return eval("self."+namen)
+    #def __dir__(self):
+        
 
 server_started = False
 glob_periphs = {}
@@ -138,7 +143,11 @@ class PeriphCPU:
         idn = os.urandom(4)
         self.work[idn] = [_thread.start_new_thread(self.__work__, (code,idn))]
     def __work__(self, code, idn):
-        self.work[idn].append(eval(code, {}, {}))
+        try:
+            resultat = eval(code, globals(), {})
+        except SyntaxError:
+            resultat = exec(code, globals(), {})
+        self.work[idn].append(resultat)
     def status(self, idn):
         if not idn in self.work.keys():
             return -1
@@ -203,3 +212,42 @@ class PeriphCombinedCPU:
         for i in self.cpus:
             i.cleanFinished()
  
+class FileBlockDev:
+    def __init__(self, filename, num_sectors):
+        if os.path.isfile(filename):
+            self.file = open(filename, 'ab')
+            self.size = file_size(filename)//512
+        else:
+            self.file = open(filename, 'wb')
+            for i in range(num_sectors):
+                self.file.write(bytes(512))
+            self.size = num_sectors
+
+    def readblocks(self, block_num, buf):
+        for i in range(len(buf)):
+            buf[i] = self.data[block_num * self.block_size + i]
+
+    def writeblocks(self, block_num, buf):
+        for i in range(len(buf)):
+            self.data[block_num * self.block_size + i] = buf[i]
+
+    def ioctl(self, op, arg):
+        if op == 4: # get number of blocks
+            return len(self.data) // self.block_size
+        if op == 5: # get block size
+            return self.block_size
+
+"""def uploadFile(cpu_or_term, filename):
+    if 'exec' in dir(cpu_or_term):
+        def execute(code):
+            return cpu_or_term.exec(code)
+    else:
+        def execute(code):
+            job = cpu_or_term.startJob(code)
+            while True!=cpu_or_term.status(job):
+                pass
+            return cpu_or_term.getResult(job)
+    files = execute("os.listdir('.')")
+    if filename in files:
+        
+"""
