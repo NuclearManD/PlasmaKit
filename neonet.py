@@ -26,14 +26,18 @@ def setup(adr=address, tcp_servers = DEFAULT_TCP_SERVERS, routing_table={nrl.DEF
     man.addUplink(ntl.NullUplink())
     _is_setup = True
 class NrlConnection:
-    def __init__(self, adr, port):
+    def __init__(self, adr, oport, iport = None):
         self.adr=adr
-        self.port=port
+        self.oport=oport
+        if iport==None:
+            self.iport = oport
+        else:
+            self.iport = iport
         self.queue = []
     def send(self,data):
         if man==None:
             return False
-        return man.sendPacket(self.adr,self.port, data)
+        return man.sendPacket(self.adr,self.oport, data)
     def recv(self,timeout = 8000):
         if self.available()>0:
             return self.queue.pop()
@@ -49,20 +53,24 @@ class NrlConnection:
             return len(self.queue)
         i=0
         while i<len(man.queue):
-            if man.queue[i][0]==self.adr and man.queue[i][1]==self.port:
+            if man.queue[i][0]==self.adr and man.queue[i][1]==self.iport:
                 self.queue.insert(0,man.queue.pop(i)[2])
             else:
                 i+=1
         return len(self.queue)
 
 class NrlOpenPort:
-    def __init__(self, port):
-        self.port=port
+    def __init__(self, oport, iport = None):
+        self.oport=oport
+        if iport==None:
+            self.iport = oport
+        else:
+            self.iport = iport
         self.queue = []
     def send(self, adr, data):
         if man==None:
             return False
-        return man.sendPacket(adr,self.port, data)
+        return man.sendPacket(adr,self.oport, data)
     def recv(self,timeout = 8000):
         if self.available()>0:
             return self.queue.pop()
@@ -78,7 +86,7 @@ class NrlOpenPort:
             return len(self.queue)
         i=0
         while i<len(man.queue):
-            if man.queue[i][1]==self.port:
+            if man.queue[i][1]==self.iport:
                 pk = man.queue.pop(i)
                 self.queue.insert(0,[pk[0],pk[2]])
             else:

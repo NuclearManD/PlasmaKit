@@ -3,7 +3,7 @@ from random import randint
 import _thread, os
 
 def lsperiph(adr):
-    con = net.NrlConnection(adr, 0xF00F1337)
+    con = net.NrlConnection(adr, 0xF00F1337, 0xF00F1338)
     con.send(b'ls')
     rv = con.recv()
     if rv==None:
@@ -27,7 +27,7 @@ class PeripheralRemote:
         self._methods = {}
         if(dbg!=None):
             dbg("Connecting to "+str(address)+"...")
-        self._con = net.NrlConnection(address, 0xF00F1337)
+        self._con = net.NrlConnection(address, 0xF00F1337, 0xF00F1338)
         if(dbg!=None):
             dbg("Exchanging data...")
         self._con.send(b'ls\x00'+name.encode())
@@ -77,7 +77,7 @@ glob_periphs = {}
 # meant to be run in a new thread
 def server_code():
     global server_started
-    open_port = net.NrlOpenPort(0xF00F1337)
+    open_port = net.NrlOpenPort(0xF00F1338, 0xF00F1337)
     server_started = True
     while True:
         kleg = open_port.recv()
@@ -221,27 +221,32 @@ class PeriphCombinedCPU:
 class FileBlockDev:
     def __init__(self, filename, num_sectors):
         if os.path.isfile(filename):
-            self.file = open(filename, 'ab')
+            self.file = open(filename, 'ab+')
             self.size = file_size(filename)//512
         else:
-            self.file = open(filename, 'wb')
+            self.file = open(filename, 'wb+')
             for i in range(num_sectors):
                 self.file.write(bytes(512))
             self.size = num_sectors
 
     def readblocks(self, block_num, buf):
+        self.file.seek(block_num*512)
+        data = self.file.read(len(buf))
         for i in range(len(buf)):
-            buf[i] = self.data[block_num * self.block_size + i]
+            buf[i] = data[i]
 
     def writeblocks(self, block_num, buf):
-        for i in range(len(buf)):
-            self.data[block_num * self.block_size + i] = buf[i]
-
+        self.file.seek(block_num*512)
+        self.file.write(buf)
     def ioctl(self, op, arg):
-        if op == 4: # get number of blocks
+        if op == 2:
+            self.file.close()
+        elif op == 3:
+            self.file.flush()
+        elif op == 4: # get number of blocks
             return len(self.data) // self.block_size
-        if op == 5: # get block size
-            return self.block_size
+        elif op == 5: # get block size
+            return 512
 
 def uploadFile(adr, cpu_or_term, filename, dbg = print):
     if 'exec' in dir(cpu_or_term):
@@ -280,5 +285,5 @@ def uploadFile(adr, cpu_or_term, filename, dbg = print):
         dbg("\nTransferred.  Committing...")
     execute("try:\n\tos.remove('./"+filename+"')\nexcept:\n\tpass\n"+
             "os.rename('./"+tmp_fn+"', './"+filename+"')")
-    execute("unbindLocalPeripheral('tmp')")
+    execute(periph_ident+"unbindLocalPeripheral('tmp')")
     
