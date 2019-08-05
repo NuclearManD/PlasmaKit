@@ -40,7 +40,8 @@ class PeripheralRemote:
         if tokens[0]!=b'ok':
             raise Exception("Protocol Error")
         for i in tokens[1:]:
-            self.__add_method__(i.decode())
+            if len(i)>0:
+                self.__add_method__(i.decode())
     def __add_method__(self, name):
         self._methods[name] = eval("lambda self,*a: self.__call_remote__(b'"+name+"',a)", {}, {}).__get__(self)
     def __call_remote__(self, fn, args):
@@ -61,11 +62,14 @@ class PeripheralRemote:
             else:
                 raise Exception("You should never see this error, perhaps Thanos is here?")
     def __getattr__(self, namen):
-      if namen in self._methods.keys():
-        return self._methods[namen]
-      return eval("self."+namen)
-    #def __dir__(self):
-        
+        if namen in self._methods.keys():
+            return self._methods[namen]
+        elif namen in dir(super(self.__class__, self)):
+            return eval("self."+namen)
+        else:
+            raise AttributeError("'"+self._name+"' object has no attribute '"+namen+"'")
+    def __dir__(self):
+        return dir(super(self.__class__, self)) + list(self._methods.keys())
 
 server_started = False
 glob_periphs = {}
@@ -135,6 +139,8 @@ def bindLocalPeripheral(obj, name):
         raise Exception("Failed to set name for new peripheral "+name+".  Perhaps it was being binded for the second time?")
     glob_periphs[name] = obj
     return obj
+def unbindLocalPeripheral(name):
+    glob_periphs.pop(name)
 
 class PeriphCPU:
     def __init__(self):
@@ -237,7 +243,7 @@ class FileBlockDev:
         if op == 5: # get block size
             return self.block_size
 
-"""def uploadFile(cpu_or_term, filename):
+def uploadFile(adr, cpu_or_term, filename, dbg = print):
     if 'exec' in dir(cpu_or_term):
         def execute(code):
             return cpu_or_term.exec(code)
@@ -247,7 +253,32 @@ class FileBlockDev:
             while True!=cpu_or_term.status(job):
                 pass
             return cpu_or_term.getResult(job)
-    files = execute("os.listdir('.')")
-    if filename in files:
-        
-"""
+    f1 = open(filename, 'rb')
+    tmp_fn = '_plasma_tmp.xyz'
+    dir_res = execute('dir()')
+    if 'bindLocalPeripheral' in dir_res:
+        periph_ident = ''
+    elif 'periph' in dir_res:
+        periph_ident = 'periph.'
+    else:
+        periph_ident = '_periph_.'
+        execute('import periph as _periph_')
+    execute("tmp=open('./"+tmp_fn+"', 'wb')\n"
+            +periph_ident+"bindLocalPeripheral(tmp, 'tmp')\n")
+    if(dbg!=None):
+        dbg("Starting data transfer...")
+    f2 = PeripheralRemote(adr, 'tmp', dbg)
+    while True:
+        data = f1.read(512)
+        if len(data)==0:
+            break
+        f2.write(data)
+        if(dbg!=None):
+            dbg(".", end='')
+    f2.close()
+    if(dbg!=None):
+        dbg("\nTransferred.  Committing...")
+    execute("try:\n\tos.remove('./"+filename+"')\nexcept:\n\tpass\n"+
+            "os.rename('./"+tmp_fn+"', './"+filename+"')")
+    execute("unbindLocalPeripheral('tmp')")
+    
