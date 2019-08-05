@@ -19,38 +19,18 @@ def lsperiph(adr):
 
 def file_size(fn):
     return os.stat(fn)[6]
-
-class PeripheralRemote:
-    def __init__(self, address, name, dbg = print):
+_codebase_1 = """class _A:
+    def __init__(self, address, name, con):
         self._adr = address
         self._name = name
-        self._methods = {}
-        if(dbg!=None):
-            dbg("Connecting to "+str(address)+"...")
-        self._con = net.NrlConnection(address, 0xF00F1337, 0xF00F1338)
-        if(dbg!=None):
-            dbg("Exchanging data...")
-        self._con.send(b'ls\x00'+name.encode())
-        rv = self._con.recv()
-        if rv==None:
-            raise Exception("Connection Error")
-        tokens = rv.split(b'\x00')
-        if tokens[0]==b'error':
-            raise Exception(tokens[1].decode())
-        if tokens[0]!=b'ok':
-            raise Exception("Protocol Error")
-        for i in tokens[1:]:
-            if len(i)>0:
-                self.__add_method__(i.decode())
-    def __add_method__(self, name):
-        self._methods[name] = eval("lambda self,*a: self.__call_remote__(b'"+name+"',a)", {}, {}).__get__(self)
+        self._con = con
     def __call_remote__(self, fn, args):
-        self._con.send(b'call\x00'+self._name.encode()+b"\x00"+fn+b"\x00"+repr(list(args)).encode())
+        self._con.send(b'call\\x00'+self._name.encode()+b"\\x00"+fn+b"\\x00"+repr(list(args)).encode())
         res = self._con.recv()
         if res==None:
             raise Exception("Connection Error")
         else:
-            res = res.split(b'\x00')
+            res = res.split(b'\\x00')
             if len(res)!=2 or not res[0] in [b'ok', b'raise', b'error']:
                 raise Exception("Protocol Error")
             elif res[0]==b'error':
@@ -61,16 +41,34 @@ class PeripheralRemote:
                 return eval(res[1])
             else:
                 raise Exception("You should never see this error, perhaps Thanos is here?")
-    def __getattr__(self, namen):
-        if namen in self._methods.keys():
-            return self._methods[namen]
-        elif namen in dir(super(self.__class__, self)):
-            return eval("self."+namen)
-        else:
-            raise AttributeError("'"+self._name+"' object has no attribute '"+namen+"'")
-    def __dir__(self):
-        return dir(super(self.__class__, self)) + list(self._methods.keys())
-
+"""
+_codebase_2 = """    def {}(self, *a):
+        return self.__call_remote__(b'{}', a)
+"""
+def PeripheralRemote(address, name, dbg = print):
+    code = _codebase_1
+    if(dbg!=None):
+        dbg("Connecting to "+str(address)+"...")
+    con = net.NrlConnection(address, 0xF00F1337, 0xF00F1338)
+    if(dbg!=None):
+        dbg("Exchanging data...")
+    con.send(b'ls\x00'+name.encode())
+    rv = con.recv()
+    if rv==None:
+        raise Exception("Connection Error")
+    tokens = rv.split(b'\x00')
+    if tokens[0]==b'error':
+        raise Exception(tokens[1].decode())
+    if tokens[0]!=b'ok':
+        raise Exception("Protocol Error")
+    for i in tokens[1:]:
+        if len(i)>0:
+            i = i.decode()
+            code+=_codebase_2.format(i,i)
+    l = {}
+    exec(code, {}, l)
+    
+    return l['_A'](address, name, con)
 server_started = False
 glob_periphs = {}
 
@@ -244,7 +242,7 @@ class FileBlockDev:
         elif op == 3:
             self.file.flush()
         elif op == 4: # get number of blocks
-            return len(self.data) // self.block_size
+            return self.size
         elif op == 5: # get block size
             return 512
 
