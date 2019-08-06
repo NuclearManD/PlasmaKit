@@ -246,7 +246,9 @@ class FileBlockDev:
         elif op == 5: # get block size
             return 512
 
-def uploadFile(adr, cpu_or_term, filename, dbg = print):
+def uploadFile(adr, cpu_or_term, filename, remotepath = None, dbg = print):
+    if remotepath==None:
+        remotepath = filename
     if 'exec' in dir(cpu_or_term):
         def execute(code):
             return cpu_or_term.exec(code)
@@ -257,7 +259,7 @@ def uploadFile(adr, cpu_or_term, filename, dbg = print):
                 pass
             return cpu_or_term.getResult(job)
     f1 = open(filename, 'rb')
-    tmp_fn = '_plasma_tmp.xyz'
+    tmp_fn = remotepath+'_p_tmp.xyz'
     dir_res = execute('dir()')
     if 'bindLocalPeripheral' in dir_res:
         periph_ident = ''
@@ -266,7 +268,7 @@ def uploadFile(adr, cpu_or_term, filename, dbg = print):
     else:
         periph_ident = '_periph_.'
         execute('import periph as _periph_')
-    execute("tmp=open('./"+tmp_fn+"', 'wb')\n"
+    execute("tmp=open('"+tmp_fn+"', 'wb')\n"
             +periph_ident+"bindLocalPeripheral(tmp, 'tmp')\n")
     if(dbg!=None):
         dbg("Starting data transfer...")
@@ -281,7 +283,7 @@ def uploadFile(adr, cpu_or_term, filename, dbg = print):
     f2.close()
     if(dbg!=None):
         dbg("\nTransferred.  Committing...")
-    execute("try:\n\tos.remove('./"+filename+"')\nexcept:\n\tpass\n"+
-            "os.rename('./"+tmp_fn+"', './"+filename+"')")
+    execute("try:\n\tos.remove('"+remotepath+"')\nexcept:\n\tpass\n"+
+            "os.rename('"+tmp_fn+"', '"+remotepath+"')")
     execute(periph_ident+"unbindLocalPeripheral('tmp')")
     
