@@ -14,7 +14,7 @@ def server_code(netkey, sys):
     open_port = net.NrlOpenPort(0x192291, 0x291192)
     server_started = True
     while True:
-        kleg = open_port.recv()
+        kleg = open_port.recv(60000)
         if kleg!=None:
             src = kleg[0]
             data = kleg[1].split(b'\x00')
@@ -27,6 +27,11 @@ def server_code(netkey, sys):
                 else:
                     res = b'0'
                 open_port.send(src, res)
+            elif cmd==b'register':
+                open_port.send(src, b'ok')
+                if (not src in sys.peers) and sys.test_peer(src):
+                    sys.add_peer(src)
+                    
 def start_server(address, netkey, sys):
     periph.start_server(address)
     print("Starting system server...")
@@ -51,12 +56,12 @@ class System:
 
         if(dbg!=None):
             dbg("Connecting to peers...")
-        self.peers = {}
+        self.peers = []
             
         for i in peers:
             try:
                 if self.test_peer(i):
-                    self.peers[i] = True
+                    self.add_peer(i)
             except:
                 if(dbg!=None):
                     dbg(hex(i)+" is not online.")
@@ -66,4 +71,5 @@ class System:
         con = net.NrlConnection(adr, 0x291192, 0x192291)
         con.send(b'getkey')
         return con.recv(8000).decode()==self.netkey
-            
+    def add_peer(self, adr):
+        
