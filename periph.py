@@ -1,9 +1,10 @@
 import neonet as net
+from link2 import L2NrlConnection, L2NrlOpenPort
 from random import randint
 import _thread, os
 
-def lsperiph(adr):
-    con = net.NrlConnection(adr, 0xF00F1337, 0xF00F1338)
+def lsperiph(adr, password = None):
+    con = L2NrlConnection(adr, 0xF00F1337, 0xF00F1338, password)
     con.send(b'ls')
     rv = con.recv()
     if rv==None:
@@ -45,11 +46,11 @@ _codebase_1 = """class _A:
 _codebase_2 = """    def {}(self, *a):
         return self.__call_remote__(b'{}', a)
 """
-def PeripheralRemote(address, name, dbg = print):
+def PeripheralRemote(address, name, password = None, dbg = print):
     code = _codebase_1
     if(dbg!=None):
         dbg("Connecting to "+str(address)+"...")
-    con = net.NrlConnection(address, 0xF00F1337, 0xF00F1338)
+    con = L2NrlConnection(address, 0xF00F1337, 0xF00F1338, password)
     if(dbg!=None):
         dbg("Exchanging data...")
     con.send(b'ls\x00'+name.encode())
