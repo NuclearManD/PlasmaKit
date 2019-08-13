@@ -1,12 +1,12 @@
 from ucryptolib import aes
-from neonet import *
-import os
+import neonet as net
+import os, time
 
 def encode(data, pwd):
     if pwd==None:
         return data
     q = os.urandom(1)
-    pwd = pwd+hex(q[0])[2:]
+    pwd = (pwd+hex(q[0])[2:]).zfill(16)
     data = len(data).to_bytes(2, 'little') + data
     data = data + bytes(16-len(data)%16)
     encryptor = aes(pwd.encode(), 1)
@@ -15,7 +15,7 @@ def encode(data, pwd):
 def decode(data, pwd):
     if pwd==None:
         return data
-    pwd = pwd+hex(data[0])[2:]
+    pwd = (pwd+hex(data[0])[2:]).zfill(16)
     decryptor = aes(pwd.encode(), 1)
     data = decryptor.decrypt(data[1:])
     return data[2:2+int.from_bytes(data[:2], 'little')]
@@ -31,26 +31,29 @@ class L2NrlConnection:
         self.queue = []
         self.pwd = password
     def send(self,data):
-        if man==None:
+        if net.man==None:
             return False
-        return neonet.man.sendPacket(self.adr,self.oport, encode(data, self.pwd))
+        return net.man.sendPacket(self.adr,self.oport, encode(data, self.pwd))
     def recv(self,timeout = 8000):
         if self.available()>0:
             return self.queue.pop()
         else:
-            timer = ntl.millis()+timeout
-            while timer>ntl.millis():
+            timer = net.ntl.millis()+timeout
+            while timer>net.ntl.millis():
                 if self.available()>0:
-                    return decode(self.queue.pop(), self.pwd)
+                    try:
+                        return decode(self.queue.pop(), self.pwd)
+                    except:
+                        pass
                 time.sleep(0.0001)
             return None
     def available(self):
-        if man==None:
+        if net.man==None:
             return len(self.queue)
         i=0
-        while i<len(man.queue):
-            if man.queue[i][0]==self.adr and man.queue[i][1]==self.iport:
-                self.queue.insert(0,man.queue.pop(i)[2])
+        while i<len(net.man.queue):
+            if net.man.queue[i][0]==self.adr and net.man.queue[i][1]==self.iport:
+                self.queue.insert(0,net.man.queue.pop(i)[2])
             else:
                 i+=1
         return len(self.queue)
@@ -65,27 +68,30 @@ class L2NrlOpenPort:
         self.queue = []
         self.pwd = password
     def send(self, adr, data):
-        if man==None:
+        if net.man==None:
             return False
-        return man.sendPacket(adr,self.oport, encode(data, self.pwd))
+        return net.man.sendPacket(adr,self.oport, encode(data, self.pwd))
     def recv(self,timeout = 8000):
         if self.available()>0:
             return self.queue.pop()
         else:
-            timer = ntl.millis()+timeout
-            while timer>ntl.millis():
+            timer = net.ntl.millis()+timeout
+            while timer>net.ntl.millis():
                 if self.available()>0:
                     return self.queue.pop()
                 time.sleep(0.0001)
             return None
     def available(self):
-        if man==None:
+        if net.man==None:
             return len(self.queue)
         i=0
-        while i<len(man.queue):
-            if man.queue[i][1]==self.iport:
-                pk = man.queue.pop(i)
-                self.queue.insert(0,[pk[0],decode(pk[2], self.pwd)])
+        while i<len(net.man.queue):
+            if net.man.queue[i][1]==self.iport:
+                pk = net.man.queue.pop(i)
+                try:
+                    self.queue.insert(0,[pk[0],decode(pk[2], self.pwd)])
+                except:
+                    pass
             else:
                 i+=1
         return len(self.queue)

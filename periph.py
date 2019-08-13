@@ -74,9 +74,9 @@ server_started = False
 glob_periphs = {}
 
 # meant to be run in a new thread
-def server_code():
+def server_code(password = None):
     global server_started
-    open_port = net.NrlOpenPort(0xF00F1338, 0xF00F1337)
+    open_port = L2NrlOpenPort(0xF00F1338, 0xF00F1337, password)
     server_started = True
     while True:
         kleg = open_port.recv()
@@ -126,11 +126,11 @@ def server_code():
             else:
                 open_port.send(src, b'error\x00Invalid command \''+cmd+b'\'')
                     
-def start_server(address = 0x10820000|randint(0,0xFFFF)):
+def start_server(address = 0x10820000|randint(0,0xFFFF), password = None):
     print("Connecting to network...")
     net.setup(address)
     print("Starting server...")
-    _thread.start_new_thread(server_code,())
+    _thread.start_new_thread(server_code,(password,))
 
 def bindLocalPeripheral(obj, name):
     name = name.replace(' ', '_')
