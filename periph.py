@@ -49,7 +49,7 @@ _codebase_2 = """    def {}(self, *a):
 def PeripheralRemote(address, name, password = None, dbg = print):
     code = _codebase_1
     if(dbg!=None):
-        dbg("Connecting to "+str(address)+"...")
+        dbg("Connecting to "+hex(address)+"...")
     con = L2NrlConnection(address, 0xF00F1337, 0xF00F1338, password)
     if(dbg!=None):
         dbg("Exchanging data...")
@@ -186,7 +186,7 @@ class PeriphCPU:
 
 class PeriphCombinedCPU:
     def __init__(self, cpus):
-        if type(cpus)!=list or len(cpus)<2:
+        if type(cpus)!=list or len(cpus)<1:
             raise ValueError("Cannot accept argument.")
         self.cpus = cpus
         self.cpucnt = 0

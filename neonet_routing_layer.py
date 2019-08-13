@@ -93,7 +93,7 @@ class NrlConnectionManager:
         self.routing[address]=key
     def update(self):
         while self.is_updating:
-            time.sleep(0.000001)
+            time.sleep(0.0001)
         self.is_updating=True
         for i in self.uplinks.keys():
             u = self.uplinks[i]
